@@ -1,0 +1,95 @@
+name: Update moshi-hook
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: moshi-hook-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@786fff0690178f1234e4e1fe9b536e94f5433196
+
+      - name: Fetch, verify, and pin the official archive
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          readonly latest_url='https://cdn.getmoshi.app/hook/latest/version.txt'
+          readonly archive_name='moshi-hook_Linux_x86_64.tar.gz'
+          version="$(curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 "$latest_url" | tr -d '\r\n')"
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'Unexpected Moshi version: %s\n' "$version" >&2
+            exit 1
+          fi
+          version_number="${version#v}"
+
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          checksum_file="$temp_dir/checksums.txt"
+          archive_file="$temp_dir/$archive_name"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "https://cdn.getmoshi.app/hook/${version}/checksums.txt" \
+            --output "$checksum_file"
+
+          expected_hash="$(awk -v archive="$archive_name" '
+            $2 == archive && $1 ~ /^[0-9a-f]{64}$/ { count += 1; hash = $1 }
+            END { if (count == 1) print hash; else exit 1 }
+          ' "$checksum_file")"
+
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "https://cdn.getmoshi.app/hook/${version}/${archive_name}" \
+            --output "$archive_file"
+          printf '%s  %s\n' "$expected_hash" "$archive_file" | sha256sum --check --status -
+          sri_hash="$(nix hash convert --hash-algo sha256 --to sri "$expected_hash")"
+
+          printf '{\n  version = "%s";\n  hash = "%s";\n}\n' "$version_number" "$sri_hash" > version.nix
+
+      - name: Build and verify the package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          result_path="$(nix build --no-link --print-out-paths .#moshi-hook)"
+          expected_version="$(sed -n 's/^  version = "\([0-9][0-9.]*\)";$/\1/p' version.nix)"
+          if [[ ! "$expected_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'Invalid pinned version\n' >&2
+            exit 1
+          fi
+          actual_version="$("$result_path/bin/moshi-hook" --version)"
+          if [[ "$actual_version" != "moshi-hook version $expected_version" ]]; then
+            printf 'Unexpected binary version: %s\n' "$actual_version" >&2
+            exit 1
+          fi
+
+      - name: Commit a validated update
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- version.nix; then
+            printf 'moshi-hook is already current.\n'
+            exit 0
+          fi
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add version.nix
+          git commit -m "chore: update moshi-hook to $(sed -n 's/^  version = "\([0-9][0-9.]*\)";$/\1/p' version.nix)"
+          git push origin HEAD:main

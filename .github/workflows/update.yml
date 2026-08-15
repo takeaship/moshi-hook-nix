@@ -17,13 +17,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Check out main
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@07ebb8d2749aa2fac2baae7d1cfa011e4acfd8d1
         with:
           ref: main
           fetch-depth: 1
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@786fff0690178f1234e4e1fe9b536e94f5433196
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25
 
       - name: Fetch, verify, and pin the official archive
         id: pin

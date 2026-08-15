@@ -25,12 +25,15 @@ the official Linux x86_64 static archive.
 ## Security and updates
 
 The pinned version and Nix SRI hash live in `version.nix`. The update workflow
-runs on a schedule and can also be started manually. It retrieves Moshi's
-official `latest/version.txt` and that version's `checksums.txt`, downloads the
-Linux x86_64 archive, and verifies its SHA-256 independently before changing
-the pin. It builds the flake and confirms the binary reports the expected
-version before committing an update to `main`.
+runs on a schedule and can also be started manually. A read-only job retrieves
+Moshi's official `latest/version.txt` and that version's `checksums.txt`,
+downloads the Linux x86_64 archive, verifies its SHA-256, and rejects
+downgrades. A separate credential-free job builds the flake and confirms the
+binary reports the expected version. Only then does a fresh write-enabled job
+re-fetch and verify the release, ensure `main` has not changed, and commit the
+new `version.nix`; it never executes the downloaded binary.
 
-The workflow has only `contents: write` permission, uses the repository's
-ephemeral `GITHUB_TOKEN` solely for that validated direct commit, and uses no
-user-managed secrets. GitHub Actions are pinned by full commit SHA.
+The workflow grants read and write permissions only to their respective jobs,
+never persists Git credentials, and exposes the ephemeral `GITHUB_TOKEN` only
+to its final push step. It uses no user-managed secrets. GitHub Actions are
+pinned by full commit SHA.

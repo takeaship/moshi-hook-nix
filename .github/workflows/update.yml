@@ -145,6 +145,10 @@ jobs:
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25
+        with:
+          # This job executes an unvetted upstream binary; keep GITHUB_TOKEN off the runner.
+          github-token: ""
+          source-tag: v3.22.2
 
       - name: Build and execute the independently verified package
         env:

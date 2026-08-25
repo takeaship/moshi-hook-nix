@@ -172,12 +172,7 @@ jobs:
           git checkout --detach "$BASE_SHA"
           printf '{\n  version = "%s";\n  hash = "%s";\n}\n' "$VERSION" "$SRI_HASH" > version.nix
 
-          result_path="$(nix build --no-link --print-out-paths .#moshi-hook)"
-          actual_version="$(timeout 60 "$result_path/bin/moshi-hook" --version)"
-          if [[ "$actual_version" != "moshi-hook version $VERSION" ]]; then
-            printf 'Unexpected binary version: %s\n' "$actual_version" >&2
-            exit 1
-          fi
+          ./scripts/smoke-test.sh "$VERSION"
 
   commit:
     name: Commit validated release

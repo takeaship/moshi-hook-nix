@@ -31,7 +31,8 @@ downloads the Linux x86_64 archive, verifies its SHA-256, and rejects
 downgrades. A separate credential-free job builds the flake and confirms the
 binary reports the expected version. Only then does a fresh write-enabled job
 re-fetch and verify the release, ensure `main` has not changed, and commit the
-new `version.nix`; it never executes the downloaded binary.
+new `version.nix`; it never executes the downloaded binary. The same package
+check runs for every pull request and can also be started manually.
 
 The workflow grants read and write permissions only to their respective jobs,
 never persists Git credentials, and exposes the ephemeral `GITHUB_TOKEN` only
